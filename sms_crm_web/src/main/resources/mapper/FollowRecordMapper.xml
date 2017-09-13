@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dzd.phonebook.dao.FollowRecordDao">
+    <!-- 插入跟进记录 -->
+    <insert id="insert" parameterType="Object">
+        <selectKey resultType="java.lang.Integer" order="AFTER"
+                   keyProperty="followid">
+            SELECT LAST_INSERT_ID()
+        </selectKey>
+        insert into
+        follow_record(followid,cid,userid,content,create_time)
+        values(#{followid},#{cid},#{userid},#{content},now())
+    </insert>
+
+    <!--查询客户最近二天的跟进记录-->
+    <select id="queryFollowRecord2Day" parameterType="Object" resultType="com.dzd.phonebook.entity.FollowRecordView">
+       select content,create_time createTime,
+      (select nickName from sys_user su where fr.userid=su.id) nickName,
+      (select c_name from customer cu where cu.cid=fr.cid) cname
+      from follow_record fr where userid in(select id from sys_user su where superiorId=#{id}) and fr.create_time &gt;(select adddate(curdate(), '-2 days'))
+      order by fr.create_time desc
+    </select>
+
+    <!--公海客户列表-->
+    <select id="queryGHCustomer" parameterType="com.dzd.phonebook.util.DzdPageParam"
+            resultType="com.dzd.phonebook.entity.CustomerView">
+        select cid,cname,telephone,remark,source,CONCAT(createTime,nickName) content
+        from(
+        select *,max(create_time) createTime from(
+        select cu.cid,c_name cname,cu.telephone,remark,source,su.nickName,fr.create_time
+        from customer cu
+        LEFT JOIN follow_record fr on cu.cid=fr.cid
+        left join sys_user su on su.id = fr.userid
+        where 1=1 and cu.userid is null) tab GROUP BY tab.cid)ss;
+        <if test="condition != null and condition.cname != null">
+            and cname like '%${condition.cname}%'
+        </if>
+        <if test="condition != null and condition.telephone != null">
+            and telephone =#{condition.telephone}
+        </if>
+    </select>
+
+    <!--修改跟进人(添加到沟通列表)-->
+    <update id="addToCustomer" parameterType="java.util.Map" >
+        UPDATE customer SET userid = #{userid},stage=0 WHERE cid IN
+        <foreach collection="ids" index="index" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </update>
+
+    <!--查看客户的跟进记录-->
+    <select id="queryFollowRecodByCid" resultType="com.dzd.phonebook.entity.FollowRecordView" parameterType="Object">
+      select content,create_time createTime,
+      (select nickName from sys_user su where fr.userid=su.id) nickName
+      from follow_record fr where fr.cid =#{cid} order by create_time desc
+    </select>
+</mapper>   

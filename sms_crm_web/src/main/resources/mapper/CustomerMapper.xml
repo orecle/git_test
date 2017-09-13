@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dzd.phonebook.dao.CustomerDao">
+    <!-- Result Map -->
+    <resultMap id="BaseResultMap" type="com.dzd.phonebook.entity.Customer">
+        <result column="cid" property="cid"/>
+        <result column="c_name" property="cname"/>
+        <result column="telephone" property="telephone"/>
+        <result column="remark" property="remark"/>
+        <result column="stage" property="stage"/>
+        <result column="userid" property="userid"/>
+        <result column="source" property="source"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_check" property="isCheck"/>
+        <result column="is_send" property="isSend"/>
+    </resultMap>
+
+    <!-- 查询的列 -->
+    <sql id="Base_Column_List">
+		cid,c_name cname,telephone,remark,stage,userid,deleted,createTime,updateTime,source
+	</sql>
+
+    <!-- 查询条件 -->
+    <sql id="Example_Where_Clause">
+        where 1=1
+        <trim suffixOverrides=",">
+            <if test="id != null">
+                and id = #{id}
+            </if>
+            <if test="cname != null and cname != ''">
+                and c_name like CONCAT('%', #{cname}, '%')
+            </if>
+            <if test="telephone != null and telephone != ''">
+                and telephone like CONCAT('%', #{telephone}, '%')
+            </if>
+            <if test="userid != null and userid != ''">
+                and userid =#{userid}
+            </if>
+        </trim>
+    </sql>
+
+    <!--                      接口             -->
+    <!--客户管理列表-->
+    <select id="queryCustomerPage" parameterType="com.dzd.phonebook.util.DzdPageParam"
+            resultType="com.dzd.phonebook.entity.CustomerView">
+        select cid,cname,telephone,remark,stage,userid,source,bname,allocatedTime,updateTime,CONCAT_WS("",SUBSTR(createTime2 ,3,8),"  ",nickName,"  ",SUBSTR(content,1,20)) content,isSign
+        from(
+        select * ,max(createTime1) createTime2
+        from ( select
+        cu.cid,c_name cname,remark,stage,cu.userid,source,
+        su.nickName bname,
+        fr.create_time createTime1,
+        cu.is_sign isSign,
+        cu.telephone,
+        fr.content,
+        cu.update_time updateTime,
+        cu.allocated_time allocatedTime,
+      --  sy.nickName
+        (select nickName from sys_user where id=fr.userid) nickName
+        from customer cu
+        LEFT JOIN sys_user su on su.id=cu.userid
+        LEFT JOIN  follow_record fr on cu.cid=fr.cid
+      --  LEFT JOIN sys_user sy on sy.id=fr.userid
+        where 1=1 and cu.deleted=0
+        and cu.userid is not null
+        order by fr.create_time desc
+        )ss group by cid)tab
+        where 1=1
+        <if test="condition != null and condition.smsUserVal != null and condition.temp !=1 ">
+            and userid in (${condition.smsUserVal})
+        </if>
+        <if test="condition != null and condition.cname != null">
+            and cname like '%${condition.cname}%'
+        </if>
+        <if test="condition != null and condition.telephone != null">
+            and telephone like '%${condition.telephone}%'
+        </if>
+        <if test="condition != null and condition.bname != null">
+            and bname like '%${condition.bname}%'
+        </if>
+        <if test="condition != null and condition.stage != null">
+            and stage =#{condition.stage}
+        </if>
+        ORDER BY updateTime desc
+    </select>
+
+    <!--公海客户管理列表-->
+    <select id="queryGHCustomerPage" parameterType="com.dzd.phonebook.util.DzdPageParam"
+            resultType="com.dzd.phonebook.entity.CustomerView">
+        select cid,cname,telephone,remark,source,updateTime,CONCAT_WS("",SUBSTR(createTime2 ,3,8),"  ",nickName,"  ",SUBSTR(content,1,20)) content
+        from(
+        select * ,max(createTime1) createTime2
+        from ( select
+        cu.cid,c_name cname,remark,source,
+        fr.create_time createTime1,
+        cu.telephone phone,
+        cu.update_time updateTime,
+        fr.content,
+        REPLACE(cu.telephone, SUBSTR(cu.telephone,4,4), '****') telephone,
+       -- sy.nickName
+        (select nickName from sys_user where id=fr.userid) nickName
+        from customer cu
+        LEFT JOIN  follow_record fr on cu.cid=fr.cid
+      --  LEFT JOIN sys_user sy on sy.id=fr.userid
+        where 1=1 and cu.deleted=0 and cu.userid is  null
+        order by fr.create_time desc
+        )ss group by cid)tab
+        where 1=1
+        <if test="condition != null and condition.cname != null">
+            and cname like '%${condition.cname}%'
+        </if>
+        <if test="condition != null and condition.telephone != null">
+            and phone like '%${condition.telephone}%'
+        </if>
+        ORDER BY updateTime desc
+    </select>
+
+    <!--导出客户信息-->
+    <select id="exportCustomer" parameterType="com.dzd.phonebook.util.DzdPageParam"
+            resultType="com.dzd.phonebook.entity.Customer">
+        select * from(
+        select
+        cu.cid,c_name cname,cu.telephone,remark,GROUP_CONCAT(fr.content SEPARATOR ',')content,stage,source,cu.userid,cu.create_time createTime,cu.is_sign isSign,
+        (select nickName  from sys_user su where su.id=cu.userid) bname
+        from customer cu LEFT JOIN follow_record fr on cu.cid=fr.cid where cu.deleted=0 group by cu.cid)tab where 1=1 and userid is not null
+        <if test="condition != null and condition.cname != null">
+            and cname like '%${condition.cname}%'
+        </if>
+        <if test="condition != null and condition.telephone != null">
+            and telephone =#{condition.telephone}
+        </if>
+        <if test="condition != null and condition.bname != null">
+            and bname =#{condition.bname}
+        </if>
+        <if test="condition != null and condition.stage != null">
+            and stage =#{condition.stage}
+        </if>
+        <if test="condition != null  and condition.ids!=null and condition.ids.size >0 ">
+            and cid in
+            <foreach collection="condition.ids" item="id"
+                     index="index" open="(" close=")" separator=",">
+                #{id}
+            </foreach>
+        </if>
+        <if test="condition != null and condition.sortVal != null">
+            ${condition.sortVal}
+        </if>
+    </select>
+
+    <!-- 插入记录 -->
+    <insert id="add" parameterType="Object">
+        <selectKey resultType="java.lang.Integer" order="AFTER"
+                   keyProperty="cid">
+            SELECT LAST_INSERT_ID()
+        </selectKey>
+        insert into
+        customer(cid,c_name,telephone,remark,stage,userid,source,create_time,update_time,deleted,is_check,is_from_customer,is_sign,allocated_time)
+        values(#{cid},#{cname},#{telephone},#{remark},#{stage},#{userid},#{source},now(),now(),#{deleted},0,#{isFromCustomer},#{isSign},now())
+    </insert>
+
+    <!-- 批量插入 -->
+    <insert id="insertList" parameterType="java.util.List" useGeneratedKeys="true" keyProperty="cid">
+        insert into
+        customer(cid,c_name,telephone,remark,stage,userid,source,create_time,update_time,deleted,is_from_customer,is_sign,allocated_time)
+        VALUES
+        <foreach collection="list" item="item" index="index" separator="," >
+            (#{item.cid},#{item.cname},#{item.telephone},#{item.remark},#{item.stage},#{item.userid},#{item.source},now(),now(),#{item.deleted},#{item.isFromCustomer},#{item.isSign},#{item.allocatedTime})
+        </foreach>
+    </insert>
+
+    <!-- 修改记录，只修改只不为空的字段 -->
+    <update id="update" parameterType="Object">
+        update customer set
+        <trim suffixOverrides=",">
+            <if test="cname != null  and cname != '' ">
+                c_name=#{cname},
+            </if>
+            <if test="telephone != null  and telephone != '' ">
+                telephone=#{telephone},
+            </if>
+            <if test="remark != null  and remark != '' ">
+                remark=#{remark},
+            </if>
+            <if test="stage != null ">
+                stage=#{stage},
+            </if>
+            <if test="userid != null and userid != '' ">
+                userid=#{userid},
+            </if>
+            <if test="source != null and source != '' ">
+                source=#{source},
+            </if>
+            <if test="deleted != null and deleted != '' ">
+                deleted=#{deleted},
+            </if>
+            <if test="isCheck != null and isCheck != '' ">
+                is_check=#{isCheck},
+            </if>
+            update_time=now()
+        </trim>
+        where cid=#{cid}
+    </update>
+
+    <!-- 释放 -->
+    <update id="updateCustomerUserId" parameterType="Object">
+        update customer set userid=null where cid = #{cid}
+    </update>
+
+    <!--修改跟进人(批量修改)，添加到沟通列表-->
+    <update id="updateList" parameterType="java.util.Map" >
+        UPDATE customer set allocated_time = now(),update_time = now(),
+        <trim suffixOverrides=",">
+            <if test="stage == 0">
+                 userid = #{userid}, stage=0
+            </if>
+            <if test="stage == 1">
+                 userid = #{userid}
+            </if>
+        </trim>
+
+        WHERE cid IN
+        <foreach collection="ids" index="index" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </update>
+
+    <!-- 删除记录 -->
+    <update id="delete" parameterType="Object">
+        update customer set is_send=1 where cid = #{cid}
+    </update>
+
+    <!-- 根据id查询账户 -->
+    <select id="queryById" resultType="com.dzd.phonebook.entity.Customer" parameterType="Object">
+        select cid,c_name cname,cu.telephone,remark,stage,userid,source,su.nickName,su.email
+        from customer cu left join sys_user su on cu.userid=su.id  where cu.cid = #{cid} and cu.deleted=0
+    </select>
+
+    <!-- 查询跟进人（业务员） -->
+    <select id="queryFollwoUser" resultType="com.dzd.phonebook.entity.SysUserView" parameterType="Object">
+        select su.id,nickName
+        from sys_user su
+        LEFT JOIN sys_role_rel srr on su.id=srr.objId
+        LEFT JOIN sys_role sr ON sr.id=srr.roleId
+        where sr.id=3
+        <if test="id !=null and id != '' ">
+            and su.id in (select id from sys_user where superiorId=#{id});
+        </if>
+    </select>
+
+    <!-- 查询用户是否存在 -->
+    <select id="queryUserExist" resultMap="BaseResultMap" parameterType="Object">
+        select
+        <include refid="Base_Column_List"/>
+        from sys_user
+        where email=#{email}
+    </select>
+
+    <!--查询系统所有电话号码-->
+    <select id="queryTelephoneAll" resultType="java.lang.String">
+        /*  select telephone from sys_user su
+        union all*/
+        select telephone from customer cu where deleted=0
+    </select>
+
+    <!--查询电话号码是否已经存在-->
+    <select id="queryTelephoneIsHad" resultType="java.lang.Integer" parameterType="Object">
+        select count(1) from customer where telephone=#{telephone} and deleted=0
+        <if test="cid != null and cid != '' ">
+            and cid not in(#{cid})
+        </if>
+    </select>
+
+    <!--查询新增沟通客户（首页，业务员登陆）-->
+    <select id="queryCustomerStage0" parameterType="Object" resultType="com.dzd.phonebook.entity.CustomerView">
+        select c_name cname,
+        create_time createTime,
+        is_check isCheck
+        from
+        customer
+        where
+        userid=#{userid} and stage=0 and is_check =0 and is_from_customer=1 and deleted=0 ORDER BY create_time desc;
+    </select>
+
+    <!--首页点击 立即查看 修改业务员下面的所有客户状态-->
+    <update id="updateIsCheck1" parameterType="Object">
+        update customer set is_check=1 where userid=#{cid} and deleted=0
+    </update>
+
+    <!--修改客户的发送状态-->
+    <update id="updateIsSend1" parameterType="Object">
+        update customer set is_send=1 where cid IN
+        <foreach collection="ids" index="index" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </update>
+
+    <!--查看业务员是否有新的客户-->
+    <select id="queryNewCustomer" parameterType="Object" resultType="java.lang.Integer">
+        select count(1) from customer where userid=#{userid} and is_check=0 and is_send=0 and deleted=0
+    </select>
+
+    <!--查看否有自动分配客户功能的业务员-->
+    <select id="queryUserIsCheck" resultType="java.lang.Integer">
+        select id from sys_user where isAutomatic=1;
+    </select>
+
+    <!--查询要分配的业务员-->
+    <select id="queryClerkUser" parameterType="Object" resultType="com.dzd.phonebook.entity.SysUserView">
+        select su.id, su.telephone,is_check IsCheck from sys_user su
+        where su.isAutomatic=1  order by allocation_time limit #{nums}
+    </select>
+
+    <!--修改业务员的分配客户时间-->
+    <update id="updateAllocationTime" parameterType="java.util.List">
+        update sys_user set allocation_time=now() where id in
+        <foreach collection="ids" index="index" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </update>
+
+
+    <!--推广客户统计列表-->
+    <select id="queryFromCustomerSatisticsPage" parameterType="com.dzd.phonebook.util.DzdPageParam" resultType="com.dzd.phonebook.entity.FromCustomerSatistics">
+        select cid,createTime,source,rpPhoneCount,sfCount,sfsCount, (sfCount+sfsCount-rpPhoneCount) as fpCount,yxCount,cjCount from(
+        select date_format(create_time, '%Y-%m-%d') createTime,source,cid,
+        IFNULL(sum(case when deleted=1 then 1 else 0 end ),0) rpPhoneCount,
+        IFNULL(sum(case when is_sign=0 then 1 else 0 end ),0) sfCount,
+        IFNULL(sum(case when is_sign=1 then 1 else 0 end ),0) sfsCount,
+        IFNULL(sum(case when stage=1 then 1 else 0 end ),0) yxCount,
+        IFNULL(sum(case when stage=2 then 1 else 0 end ),0) cjCount
+        from customer where is_from_customer=1
+        <if test="condition != null and condition.startTime!= null">
+            and	date_format(create_time, '%Y-%m-%d') <![CDATA[ >= ]]> date_format(#{condition.startTime,jdbcType=VARCHAR}, '%Y-%m-%d')
+            and date_format(create_time, '%Y-%m-%d') <![CDATA[ <= ]]> date_format(#{condition.endTime,jdbcType=VARCHAR}, '%Y-%m-%d')
+        </if>
+        <if test="condition != null and condition.source!= null">
+            and	source like '%${condition.source}%'
+        </if>
+        <if test="condition != null  and condition.ids!=null and condition.ids.size >0 ">
+            and userid in
+            <foreach collection="condition.ids" item="id"
+                     index="index" open="(" close=")" separator=",">
+                #{id}
+            </foreach>
+        </if>
+        group by source,createTime ORDER BY createTime desc)tab
+    </select>
+
+    <!--查询是否有重复发送数据-->
+    <select id="queryRepTelephone" parameterType="Object" resultType="com.dzd.phonebook.entity.CustomerView">
+        select cid,source,telephone,userid from customer where deleted=0 and is_from_customer=1
+        <if test="source!=null">
+            and source=#{source}
+        </if>
+        and telephone=#{telephone}
+    </select>
+
+    <!--修改是否有图文验证状态-->
+    <update id="updateIsSign" parameterType="Object">
+        update customer set is_sign=1 where cid=#{cid}
+    </update>
+
+    <!--查询分配的业务员是否客户中有图文标记的客户-->
+    <select id="queryIsSign1" resultType="java.lang.Integer">
+        select count(1) from customer where userid=#{userid} and is_from_customer=1 and deleted=0 and is_send=0 and is_sign=1;
+    </select>
+
+
+    <!--查询重复的数据中是否包含要添加的数据-->
+    <select id="queryRepTelephoneByToday" parameterType="Object" resultType="com.dzd.phonebook.entity.CustomerView">
+       select is_sign isSign,cid,source from customer where  is_from_customer=1 and source=#{source} and telephone=#{telephone} and
+       DATE_FORMAT(create_time,'%Y-%m-%d') =DATE_FORMAT(NOW(),'%Y-%m-%d');
+    </select>
+
+    <!--推广统计详情-->
+    <select id="queryTgDetailPage" parameterType="com.dzd.phonebook.util.DzdPageParam" resultType="com.dzd.phonebook.entity.CustomerView">
+        select cid,cname,phone,cu_createTime createTime,deleted,REPLACE(telephone, SUBSTR(telephone,4,4), '****') telephone,remark,source,CONCAT_WS("",SUBSTR(createTime1 ,3,8),"  ",nickName,"  ",SUBSTR(content,1,20)) content
+        from(
+        select *,max(createTime) createTime1 from(
+        select
+        cu.cid,c_name cname,cu.telephone phone,cu.telephone telephone,remark,source,fr.create_time createTime,fr.content,
+        cu.create_time cu_createTime,cu.deleted,
+     --   sy.nickName
+        (select nickName from sys_user where id=fr.userid) nickName
+        from customer cu
+        LEFT JOIN  follow_record fr on cu.cid=fr.cid
+     --   LEFT JOIN sys_user sy on sy.id=fr.userid
+        where  cu.is_from_customer=1
+        -- and cu.deleted=0
+        -- and cu.userid is not null
+        <if test="condition != null and condition.source != null">
+            and source=#{condition.source}
+        </if>
+        <if test="condition != null and condition.date != null">
+            and DATE_FORMAT(cu.create_time,'%Y-%m-%d')=#{condition.date}
+        </if>
+        order by fr.create_time desc ) tab group by cid)ss where 1=1
+        <if test="condition != null and condition.cname != null">
+            and cname like '%${condition.cname}%'
+        </if>
+        <if test="condition != null and condition.telephone != null">
+            and phone like '%${condition.telephone}%'
+        </if>
+        ORDER BY createTime desc
+    </select>
+
+    <!--查询状态总数-->
+    <select id="queryStageTotal" parameterType="com.dzd.phonebook.util.DzdPageParam" resultType="java.lang.Integer">
+        select count(1) from customer where deleted=0
+        and userid is not null
+        <if test="condition != null and condition.smsUserVal != null ">
+            and userid in (${condition.smsUserVal})
+        </if>
+    </select>
+
+    <!--查询状态总数-->
+    <select id="queryStageTotal0" parameterType="com.dzd.phonebook.util.DzdPageParam" resultType="java.lang.Integer">
+           select count(1) from customer where deleted=0
+           and stage=0 and userid is not null
+        <if test="condition != null and condition.smsUserVal != null ">
+            and userid in (${condition.smsUserVal})
+        </if>
+    </select>
+    <!--查询状态总数-->
+    <select id="queryStageTotal1" parameterType="com.dzd.phonebook.util.DzdPageParam" resultType="java.lang.Integer">
+        select count(1) from customer where deleted=0
+        and stage=1 and userid is not null
+        <if test="condition != null and condition.smsUserVal != null ">
+            and userid in (${condition.smsUserVal})
+        </if>
+    </select>
+    <!--查询状态总数-->
+    <select id="queryStageTotal2" parameterType="com.dzd.phonebook.util.DzdPageParam" resultType="java.lang.Integer">
+        select count(1) from customer where deleted=0
+        and stage=2 and userid is not null
+        <if test="condition != null and condition.smsUserVal != null ">
+            and userid in (${condition.smsUserVal})
+        </if>
+    </select>
+</mapper>   

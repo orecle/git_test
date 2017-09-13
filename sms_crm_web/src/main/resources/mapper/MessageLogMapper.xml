@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dzd.phonebook.dao.MessageLogDao">
+
+    <!-- 插入记录 -->
+    <insert id="add" parameterType="Object">
+        <selectKey resultType="java.lang.Integer" order="AFTER"
+                   keyProperty="id">
+            SELECT LAST_INSERT_ID()
+        </selectKey>
+        insert into message_log(id,create_time,uid,remark)values(#{id},now(),#{uid},#{remark})
+    </insert>
+
+</mapper>   
